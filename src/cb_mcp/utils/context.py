@@ -22,8 +22,6 @@ class AppContext:
             reaching for a module global.
         read_only_mode: When True, all write operations (KV and Query) are
             disabled and KV write tools are not loaded.
-        read_only_query_mode: When True, query-based write operations are
-            disabled. DEPRECATED: use ``read_only_mode`` instead.
         logging_config: Optional snapshot of the active logging configuration,
             populated by the server entrypoint after configuring its loggers.
     """
@@ -31,7 +29,6 @@ class AppContext:
     cluster_provider: ClusterProvider | None = None
     settings: Mapping[str, Any] = field(default_factory=dict)
     read_only_mode: bool = True
-    read_only_query_mode: bool = True
     logging_config: Mapping[str, Any] | None = None
 
 
