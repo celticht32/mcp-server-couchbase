@@ -86,6 +86,13 @@ logger = logging.getLogger(MCP_SERVER_NAME)
     help="Enable read-only mode. When True, all write operations (KV and Query) are disabled and KV write tools are not loaded. Set to False to enable write operations.",
 )
 @click.option(
+    "--admin-write-mode",
+    envvar="CB_MCP_ADMIN_WRITE_MODE",
+    type=bool,
+    default=False,
+    help="Enable admin write tools (index DDL and GSI settings). Requires read-only mode to be False. When False, cluster-structure and index-settings mutation tools are not loaded even if data (KV) writes are enabled.",
+)
+@click.option(
     "--transport",
     envvar=[
         "CB_MCP_TRANSPORT"
@@ -212,6 +219,7 @@ def main(
     client_cert_path,
     client_key_path,
     read_only_mode,
+    admin_write_mode,
     transport,
     host,
     port,
@@ -260,6 +268,7 @@ def main(
         disabled_tools=disabled_tools,
         confirmation_required_tools=confirmation_required_tools,
         enforce_scopes=auth is not None,
+        admin_write_mode=admin_write_mode,
     )
 
     # CLI-resolved configuration lives on AppContext, not in a module global.
@@ -272,6 +281,7 @@ def main(
         "client_cert_path": client_cert_path,
         "client_key_path": client_key_path,
         "read_only_mode": read_only_mode,
+        "admin_write_mode": admin_write_mode,
         "transport": transport,
         "host": host,
         "port": port,
@@ -298,7 +308,8 @@ def main(
         """Build the lifespan AppContext with settings captured from the CLI."""
         logger.info(
             f"MCP server initialized in lazy mode for tool discovery. "
-            f"Modes: (read_only_mode={read_only_mode})"
+            f"Modes: (read_only_mode={read_only_mode}, "
+            f"admin_write_mode={admin_write_mode})"
         )
         # Diagnostic snapshot for customer support. Filtered at INFO; visible
         # whenever the user runs with --log-level DEBUG.
@@ -329,7 +340,8 @@ def main(
     mcp = FastMCP(MCP_SERVER_NAME, lifespan=app_lifespan, auth=auth)
 
     logger.info(
-        f"Registering {len(final_tools)} tool(s) with modes (read_only_mode={read_only_mode})"
+        f"Registering {len(final_tools)} tool(s) with modes "
+        f"(read_only_mode={read_only_mode}, admin_write_mode={admin_write_mode})"
     )
 
     # Register tools; FastMCP 3.x add_tool has no annotations kwarg, so wrap first.

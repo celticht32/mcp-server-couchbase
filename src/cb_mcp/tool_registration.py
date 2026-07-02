@@ -5,7 +5,7 @@ Tool registration orchestration shared across MCP implementations.
 import logging
 from collections.abc import Callable
 
-from .tools import KV_WRITE_TOOLS, get_tools
+from .tools import ADMIN_WRITE_TOOLS, KV_WRITE_TOOLS, get_tools
 from .utils.config import parse_tool_names
 from .utils.constants import MCP_SERVER_NAME
 from .utils.elicitation import wrap_with_confirmation
@@ -23,6 +23,7 @@ def prepare_tools_for_registration(
     disabled_tools: str | None,
     confirmation_required_tools: str | None,
     enforce_scopes: bool = False,
+    admin_write_mode: bool = False,
 ) -> tuple[list[Callable], set[str], set[str]]:
     """Prepare final tool list and confirmation configuration for registration.
 
@@ -36,8 +37,9 @@ def prepare_tools_for_registration(
     (stdio / unauthenticated), so ``enforce_scopes`` only affects whether
     the wrapper is installed — not whether it does work per call.
     """
-    # When read_only_mode is True, KV write tools are not loaded.
-    tools = get_tools(read_only_mode=read_only_mode)
+    # When read_only_mode is True, KV write tools are not loaded. Admin write
+    # tools (index DDL, GSI settings) additionally require admin_write_mode.
+    tools = get_tools(read_only_mode=read_only_mode, admin_write_mode=admin_write_mode)
 
     loaded_tool_names = {tool.__name__ for tool in tools}
     disabled_tool_names = parse_tool_names(disabled_tools, loaded_tool_names)
@@ -74,7 +76,7 @@ def prepare_tools_for_registration(
             f"{sorted(skipped_confirmation_tool_names)}"
         )
 
-    write_tool_names = {fn.__name__ for fn in KV_WRITE_TOOLS}
+    write_tool_names = {fn.__name__ for fn in (*KV_WRITE_TOOLS, *ADMIN_WRITE_TOOLS)}
 
     final_tools: list[Callable] = []
     for tool in enabled_tools:

@@ -15,6 +15,15 @@ from mcp.types import ToolAnnotations
 # Index tools
 from .index import get_index_advisor_recommendations, list_indexes
 
+# Index management tools (DDL + GSI settings, write)
+from .index_admin import (
+    admin_index_settings_get,
+    admin_index_settings_set,
+    build_deferred_indexes,
+    create_index,
+    drop_index,
+)
+
 # Key-Value tools
 from .kv import (
     delete_document_by_id,
@@ -68,6 +77,8 @@ READ_ONLY_TOOLS = [
     # Index tools
     get_index_advisor_recommendations,
     list_indexes,
+    # Index settings (read)
+    admin_index_settings_get,
     # Query performance analysis tools
     get_queries_not_selective,
     get_queries_not_using_covering_index,
@@ -84,6 +95,17 @@ KV_WRITE_TOOLS = [
     insert_document_by_id,
     replace_document_by_id,
     delete_document_by_id,
+]
+
+# Admin write tools - loaded only when read_only_mode is False AND
+# admin_write_mode is True. These mutate cluster structure (index DDL) or
+# cluster-wide index settings, a strictly higher privilege than data writes,
+# so they gate behind a second, independent flag.
+ADMIN_WRITE_TOOLS = [
+    create_index,
+    drop_index,
+    build_deferred_indexes,
+    admin_index_settings_set,
 ]
 
 # List of all tools for easy registration (kept for backward compatibility)
@@ -121,20 +143,39 @@ TOOL_ANNOTATIONS: dict[str, ToolAnnotations] = {
     "insert_document_by_id": ToolAnnotations(idempotentHint=True),
     "replace_document_by_id": ToolAnnotations(idempotentHint=True),
     "delete_document_by_id": ToolAnnotations(destructiveHint=True, idempotentHint=True),
+    # Index management tools (write)
+    "create_index": ToolAnnotations(idempotentHint=False),
+    "drop_index": ToolAnnotations(destructiveHint=True, idempotentHint=True),
+    "build_deferred_indexes": ToolAnnotations(idempotentHint=True),
+    # Index settings
+    "admin_index_settings_get": ToolAnnotations(readOnlyHint=True),
+    "admin_index_settings_set": ToolAnnotations(
+        destructiveHint=False, idempotentHint=True
+    ),
 }
 
 
-def get_tools(read_only_mode: bool = True) -> list[Callable]:
+def get_tools(
+    read_only_mode: bool = True,
+    admin_write_mode: bool = False,
+) -> list[Callable]:
     """Get the list of tools based on the mode settings.
 
-    This function determines which tools should be loaded based on the
-    READ_ONLY_MODE setting. When read_only_mode is True, write tools are excluded.
+    - READ_ONLY_TOOLS are always loaded.
+    - KV_WRITE_TOOLS load when read_only_mode is False.
+    - ADMIN_WRITE_TOOLS load only when read_only_mode is False AND
+      admin_write_mode is True. Cluster-structure mutation (index DDL) and
+      cluster-wide index settings are a higher privilege than data writes, so
+      disabling read-only alone does not expose them; an operator must also
+      opt in to admin writes.
     """
     tools = list(READ_ONLY_TOOLS)
 
     if not read_only_mode:
         # KV write tools are only loaded when READ_ONLY_MODE is False
         tools.extend(KV_WRITE_TOOLS)
+        if admin_write_mode:
+            tools.extend(ADMIN_WRITE_TOOLS)
 
     return tools
 
@@ -157,6 +198,11 @@ __all__ = [
     "explain_sql_plus_plus_query",
     "get_index_advisor_recommendations",
     "list_indexes",
+    "create_index",
+    "drop_index",
+    "build_deferred_indexes",
+    "admin_index_settings_get",
+    "admin_index_settings_set",
     "get_cluster_health_and_services",
     "get_queries_not_selective",
     "get_queries_not_using_covering_index",
@@ -168,6 +214,7 @@ __all__ = [
     # Tool categories
     "READ_ONLY_TOOLS",
     "KV_WRITE_TOOLS",
+    "ADMIN_WRITE_TOOLS",
     # Tool annotations
     "TOOL_ANNOTATIONS",
     # Convenience
