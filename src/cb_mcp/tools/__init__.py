@@ -22,6 +22,20 @@ from .collections_admin import (
     update_collection,
 )
 
+# FTS (Full-Text Search) admin tools (index lifecycle + control)
+from .fts_admin import (
+    analyze_document,
+    create_fts_index,
+    delete_fts_index,
+    get_fts_index,
+    get_fts_index_count,
+    list_fts_indexes,
+    pause_fts_index_ingest,
+    resume_fts_index_ingest,
+    set_fts_index_query_control,
+    update_fts_index,
+)
+
 # Index tools
 from .index import get_index_advisor_recommendations, list_indexes
 
@@ -110,6 +124,11 @@ READ_ONLY_TOOLS = [
     list_remote_clusters,
     list_replications,
     get_replication_settings,
+    # FTS read tools
+    list_fts_indexes,
+    get_fts_index,
+    get_fts_index_count,
+    analyze_document,
     # Query performance analysis tools
     get_queries_not_selective,
     get_queries_not_using_covering_index,
@@ -150,6 +169,12 @@ ADMIN_WRITE_TOOLS = [
     pause_replication,
     resume_replication,
     update_replication_settings,
+    create_fts_index,
+    update_fts_index,
+    delete_fts_index,
+    pause_fts_index_ingest,
+    resume_fts_index_ingest,
+    set_fts_index_query_control,
 ]
 
 # List of all tools for easy registration (kept for backward compatibility)
@@ -222,6 +247,24 @@ TOOL_ANNOTATIONS: dict[str, ToolAnnotations] = {
     "update_replication_settings": ToolAnnotations(
         destructiveHint=False, idempotentHint=True
     ),
+    # FTS read tools
+    "list_fts_indexes": ToolAnnotations(readOnlyHint=True),
+    "get_fts_index": ToolAnnotations(readOnlyHint=True),
+    "get_fts_index_count": ToolAnnotations(readOnlyHint=True),
+    "analyze_document": ToolAnnotations(readOnlyHint=True),
+    # FTS write tools
+    "create_fts_index": ToolAnnotations(idempotentHint=False),
+    "update_fts_index": ToolAnnotations(destructiveHint=False, idempotentHint=True),
+    "delete_fts_index": ToolAnnotations(destructiveHint=True, idempotentHint=True),
+    "pause_fts_index_ingest": ToolAnnotations(
+        destructiveHint=False, idempotentHint=True
+    ),
+    "resume_fts_index_ingest": ToolAnnotations(
+        destructiveHint=False, idempotentHint=True
+    ),
+    "set_fts_index_query_control": ToolAnnotations(
+        destructiveHint=False, idempotentHint=True
+    ),
 }
 
 
@@ -290,6 +333,16 @@ __all__ = [
     "pause_replication",
     "resume_replication",
     "update_replication_settings",
+    "list_fts_indexes",
+    "get_fts_index",
+    "get_fts_index_count",
+    "analyze_document",
+    "create_fts_index",
+    "update_fts_index",
+    "delete_fts_index",
+    "pause_fts_index_ingest",
+    "resume_fts_index_ingest",
+    "set_fts_index_query_control",
     "get_cluster_health_and_services",
     "get_queries_not_selective",
     "get_queries_not_using_covering_index",
