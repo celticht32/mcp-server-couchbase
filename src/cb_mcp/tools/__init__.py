@@ -68,6 +68,21 @@ from .server import (
     test_cluster_connection,
 )
 
+# XDCR admin tools (remote clusters + replications, write) + list/get reads
+from .xdcr_admin import (
+    create_remote_cluster,
+    create_replication,
+    delete_remote_cluster,
+    delete_replication,
+    get_replication_settings,
+    list_remote_clusters,
+    list_replications,
+    pause_replication,
+    resume_replication,
+    update_remote_cluster,
+    update_replication_settings,
+)
+
 # Read-only tools - always available regardless of mode settings
 READ_ONLY_TOOLS = [
     # Server/Cluster management tools
@@ -91,6 +106,10 @@ READ_ONLY_TOOLS = [
     admin_index_settings_get,
     # Collection settings (read)
     get_collection_settings,
+    # XDCR read tools
+    list_remote_clusters,
+    list_replications,
+    get_replication_settings,
     # Query performance analysis tools
     get_queries_not_selective,
     get_queries_not_using_covering_index,
@@ -123,6 +142,14 @@ ADMIN_WRITE_TOOLS = [
     create_collection,
     drop_collection,
     update_collection,
+    create_remote_cluster,
+    update_remote_cluster,
+    delete_remote_cluster,
+    create_replication,
+    delete_replication,
+    pause_replication,
+    resume_replication,
+    update_replication_settings,
 ]
 
 # List of all tools for easy registration (kept for backward compatibility)
@@ -177,6 +204,24 @@ TOOL_ANNOTATIONS: dict[str, ToolAnnotations] = {
     "update_collection": ToolAnnotations(destructiveHint=False, idempotentHint=True),
     # Collection settings (read)
     "get_collection_settings": ToolAnnotations(readOnlyHint=True),
+    # XDCR read tools
+    "list_remote_clusters": ToolAnnotations(readOnlyHint=True),
+    "list_replications": ToolAnnotations(readOnlyHint=True),
+    "get_replication_settings": ToolAnnotations(readOnlyHint=True),
+    # XDCR remote-cluster tools (write)
+    "create_remote_cluster": ToolAnnotations(idempotentHint=False),
+    "update_remote_cluster": ToolAnnotations(
+        destructiveHint=False, idempotentHint=True
+    ),
+    "delete_remote_cluster": ToolAnnotations(destructiveHint=True, idempotentHint=True),
+    # XDCR replication lifecycle (write)
+    "create_replication": ToolAnnotations(idempotentHint=False),
+    "delete_replication": ToolAnnotations(destructiveHint=True, idempotentHint=True),
+    "pause_replication": ToolAnnotations(destructiveHint=False, idempotentHint=True),
+    "resume_replication": ToolAnnotations(destructiveHint=False, idempotentHint=True),
+    "update_replication_settings": ToolAnnotations(
+        destructiveHint=False, idempotentHint=True
+    ),
 }
 
 
@@ -234,6 +279,17 @@ __all__ = [
     "drop_collection",
     "update_collection",
     "get_collection_settings",
+    "list_remote_clusters",
+    "list_replications",
+    "get_replication_settings",
+    "create_remote_cluster",
+    "update_remote_cluster",
+    "delete_remote_cluster",
+    "create_replication",
+    "delete_replication",
+    "pause_replication",
+    "resume_replication",
+    "update_replication_settings",
     "get_cluster_health_and_services",
     "get_queries_not_selective",
     "get_queries_not_using_covering_index",
