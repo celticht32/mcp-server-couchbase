@@ -12,6 +12,16 @@ from collections.abc import Callable
 
 from mcp.types import ToolAnnotations
 
+# Scope and collection management tools (write) + get_collection_settings (read)
+from .collections_admin import (
+    create_collection,
+    create_scope,
+    drop_collection,
+    drop_scope,
+    get_collection_settings,
+    update_collection,
+)
+
 # Index tools
 from .index import get_index_advisor_recommendations, list_indexes
 
@@ -79,6 +89,8 @@ READ_ONLY_TOOLS = [
     list_indexes,
     # Index settings (read)
     admin_index_settings_get,
+    # Collection settings (read)
+    get_collection_settings,
     # Query performance analysis tools
     get_queries_not_selective,
     get_queries_not_using_covering_index,
@@ -106,6 +118,11 @@ ADMIN_WRITE_TOOLS = [
     drop_index,
     build_deferred_indexes,
     admin_index_settings_set,
+    create_scope,
+    drop_scope,
+    create_collection,
+    drop_collection,
+    update_collection,
 ]
 
 # List of all tools for easy registration (kept for backward compatibility)
@@ -152,6 +169,14 @@ TOOL_ANNOTATIONS: dict[str, ToolAnnotations] = {
     "admin_index_settings_set": ToolAnnotations(
         destructiveHint=False, idempotentHint=True
     ),
+    # Scope/collection management (write)
+    "create_scope": ToolAnnotations(idempotentHint=False),
+    "drop_scope": ToolAnnotations(destructiveHint=True, idempotentHint=True),
+    "create_collection": ToolAnnotations(idempotentHint=False),
+    "drop_collection": ToolAnnotations(destructiveHint=True, idempotentHint=True),
+    "update_collection": ToolAnnotations(destructiveHint=False, idempotentHint=True),
+    # Collection settings (read)
+    "get_collection_settings": ToolAnnotations(readOnlyHint=True),
 }
 
 
@@ -203,6 +228,12 @@ __all__ = [
     "build_deferred_indexes",
     "admin_index_settings_get",
     "admin_index_settings_set",
+    "create_scope",
+    "drop_scope",
+    "create_collection",
+    "drop_collection",
+    "update_collection",
+    "get_collection_settings",
     "get_cluster_health_and_services",
     "get_queries_not_selective",
     "get_queries_not_using_covering_index",

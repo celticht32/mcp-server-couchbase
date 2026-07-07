@@ -24,7 +24,7 @@ KV_WRITE_TOOL_NAMES = {
     "delete_document_by_id",
 }
 
-# Read-only tool names that should always be available (21 tools)
+# Read-only tool names that should always be available (22 tools)
 READ_ONLY_TOOL_NAMES = {
     # Server/Cluster management tools (7)
     "get_buckets_in_cluster",
@@ -45,6 +45,8 @@ READ_ONLY_TOOL_NAMES = {
     "list_indexes",
     # Index settings read tool (1)
     "admin_index_settings_get",
+    # Collection settings read tool (1)
+    "get_collection_settings",
     # Query performance analysis tools (7)
     "get_queries_not_selective",
     "get_queries_not_using_covering_index",
@@ -159,13 +161,13 @@ class TestToolCounts:
         """Verify correct number of tools in read-only mode."""
         tools = get_tools(read_only_mode=True)
         assert len(tools) == len(READ_ONLY_TOOLS)
-        assert len(tools) == 21  # Expected count of read-only tools
+        assert len(tools) == 22  # Expected count of read-only tools
 
     def test_all_tools_mode_tool_count(self):
         """Verify correct number of tools when all write tools are enabled."""
         tools = get_tools(read_only_mode=False)
         assert len(tools) == len(ALL_TOOLS)
-        assert len(tools) == 25  # Expected total count (21 read-only + 4 KV write)
+        assert len(tools) == 26  # Expected total count (22 read-only + 4 KV write)
 
     def test_kv_write_tools_count(self):
         """Verify exactly 4 KV write tools exist."""
