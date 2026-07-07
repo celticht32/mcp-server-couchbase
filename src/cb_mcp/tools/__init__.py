@@ -12,6 +12,16 @@ from collections.abc import Callable
 
 from mcp.types import ToolAnnotations
 
+# Bucket management tools (create/update/delete/flush/compact/sample, write)
+from .bucket_admin import (
+    compact_bucket,
+    create_bucket,
+    delete_bucket,
+    flush_bucket,
+    load_sample_bucket,
+    update_bucket,
+)
+
 # Index tools
 from .index import get_index_advisor_recommendations, list_indexes
 
@@ -106,6 +116,12 @@ ADMIN_WRITE_TOOLS = [
     drop_index,
     build_deferred_indexes,
     admin_index_settings_set,
+    create_bucket,
+    update_bucket,
+    delete_bucket,
+    flush_bucket,
+    compact_bucket,
+    load_sample_bucket,
 ]
 
 # List of all tools for easy registration (kept for backward compatibility)
@@ -152,6 +168,13 @@ TOOL_ANNOTATIONS: dict[str, ToolAnnotations] = {
     "admin_index_settings_set": ToolAnnotations(
         destructiveHint=False, idempotentHint=True
     ),
+    # Bucket management tools (write)
+    "create_bucket": ToolAnnotations(idempotentHint=False),
+    "update_bucket": ToolAnnotations(destructiveHint=False, idempotentHint=True),
+    "delete_bucket": ToolAnnotations(destructiveHint=True, idempotentHint=True),
+    "flush_bucket": ToolAnnotations(destructiveHint=True, idempotentHint=True),
+    "compact_bucket": ToolAnnotations(destructiveHint=False, idempotentHint=False),
+    "load_sample_bucket": ToolAnnotations(destructiveHint=False, idempotentHint=True),
 }
 
 
@@ -203,6 +226,12 @@ __all__ = [
     "build_deferred_indexes",
     "admin_index_settings_get",
     "admin_index_settings_set",
+    "create_bucket",
+    "update_bucket",
+    "delete_bucket",
+    "flush_bucket",
+    "compact_bucket",
+    "load_sample_bucket",
     "get_cluster_health_and_services",
     "get_queries_not_selective",
     "get_queries_not_using_covering_index",
