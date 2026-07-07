@@ -22,6 +22,21 @@ from .collections_admin import (
     update_collection,
 )
 
+# Diagnostics: cluster stats, node info, per-service stats, slow queries, logs
+from .diagnostics import (
+    get_bucket_stats,
+    get_cluster_info,
+    get_cluster_stats,
+    get_disk_usage,
+    get_error_logs,
+    get_fts_stats,
+    get_index_stats,
+    get_kv_stats,
+    get_node_info,
+    get_query_stats,
+    get_slow_queries,
+)
+
 # FTS (Full-Text Search) admin tools (index lifecycle + control)
 from .fts_admin import (
     analyze_document,
@@ -129,6 +144,16 @@ READ_ONLY_TOOLS = [
     get_fts_index,
     get_fts_index_count,
     analyze_document,
+    # Diagnostics (read-only)
+    get_cluster_info,
+    get_cluster_stats,
+    get_node_info,
+    get_bucket_stats,
+    get_index_stats,
+    get_query_stats,
+    get_fts_stats,
+    get_kv_stats,
+    get_disk_usage,
     # Query performance analysis tools
     get_queries_not_selective,
     get_queries_not_using_covering_index,
@@ -175,6 +200,18 @@ ADMIN_WRITE_TOOLS = [
     pause_fts_index_ingest,
     resume_fts_index_ingest,
     set_fts_index_query_control,
+]
+
+# Sensitive read tools - loaded only when admin_write_mode=True. These are
+# READ-ONLY operations but return data that can include user query text,
+# server log entries with connection strings/hostnames, and other content
+# with a higher exposure profile than ordinary stats. Gating them behind
+# the same flag as admin writes lets operators run the server in a
+# lower-privilege mode (KV writes on, admin writes off) while still
+# blocking access to potentially-sensitive read data.
+SENSITIVE_READ_TOOLS = [
+    get_slow_queries,
+    get_error_logs,
 ]
 
 # List of all tools for easy registration (kept for backward compatibility)
@@ -265,6 +302,19 @@ TOOL_ANNOTATIONS: dict[str, ToolAnnotations] = {
     "set_fts_index_query_control": ToolAnnotations(
         destructiveHint=False, idempotentHint=True
     ),
+    # Diagnostics (read-only)
+    "get_cluster_info": ToolAnnotations(readOnlyHint=True),
+    "get_cluster_stats": ToolAnnotations(readOnlyHint=True),
+    "get_node_info": ToolAnnotations(readOnlyHint=True),
+    "get_bucket_stats": ToolAnnotations(readOnlyHint=True),
+    "get_index_stats": ToolAnnotations(readOnlyHint=True),
+    "get_query_stats": ToolAnnotations(readOnlyHint=True),
+    "get_fts_stats": ToolAnnotations(readOnlyHint=True),
+    "get_kv_stats": ToolAnnotations(readOnlyHint=True),
+    "get_disk_usage": ToolAnnotations(readOnlyHint=True),
+    # Sensitive reads
+    "get_slow_queries": ToolAnnotations(readOnlyHint=True),
+    "get_error_logs": ToolAnnotations(readOnlyHint=True),
 }
 
 
@@ -281,8 +331,17 @@ def get_tools(
       cluster-wide index settings are a higher privilege than data writes, so
       disabling read-only alone does not expose them; an operator must also
       opt in to admin writes.
+    - SENSITIVE_READ_TOOLS load whenever admin_write_mode is True (independent
+      of read_only_mode). These are reads that return data with a higher
+      exposure profile (query text with literal values, server logs); gating
+      them behind admin_write_mode keeps them out of the default profile
+      while still letting an operator running in read-only mode enable
+      diagnostics by opting into admin_write_mode.
     """
     tools = list(READ_ONLY_TOOLS)
+
+    if admin_write_mode:
+        tools.extend(SENSITIVE_READ_TOOLS)
 
     if not read_only_mode:
         # KV write tools are only loaded when READ_ONLY_MODE is False
@@ -343,6 +402,17 @@ __all__ = [
     "pause_fts_index_ingest",
     "resume_fts_index_ingest",
     "set_fts_index_query_control",
+    "get_cluster_info",
+    "get_cluster_stats",
+    "get_node_info",
+    "get_bucket_stats",
+    "get_index_stats",
+    "get_query_stats",
+    "get_fts_stats",
+    "get_kv_stats",
+    "get_disk_usage",
+    "get_slow_queries",
+    "get_error_logs",
     "get_cluster_health_and_services",
     "get_queries_not_selective",
     "get_queries_not_using_covering_index",
@@ -355,6 +425,7 @@ __all__ = [
     "READ_ONLY_TOOLS",
     "KV_WRITE_TOOLS",
     "ADMIN_WRITE_TOOLS",
+    "SENSITIVE_READ_TOOLS",
     # Tool annotations
     "TOOL_ANNOTATIONS",
     # Convenience
