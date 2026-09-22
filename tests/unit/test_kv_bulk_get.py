@@ -54,8 +54,13 @@ class TestBatchRead:
             "errors": {},
         }
 
-    def test_fetches_in_a_single_round_trip(self) -> None:
-        """The point of the tool is one call, not one call per ID."""
+    def test_fetches_in_a_single_sdk_call(self) -> None:
+        """The point of the tool is one call, not one call per ID.
+
+        Not one network round trip: get_multi dispatches the individual key
+        requests concurrently rather than as a batched operation. What is saved
+        is the tool call, and therefore the agent turn.
+        """
         ctx, cluster, collection = _make_ctx_with_collection()
         collection.get_multi.return_value = _multi_result({})
 

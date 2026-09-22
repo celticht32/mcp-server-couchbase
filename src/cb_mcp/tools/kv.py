@@ -492,11 +492,13 @@ def get_documents_by_ids(
     collection_name: str,
     document_ids: list[str],
 ) -> dict[str, Any]:
-    """Get several documents by their IDs in a single round trip, from the specified
-    scope and collection.
+    """Get several documents by their IDs in one call, from the specified scope and
+    collection.
 
     Use this instead of calling get_document_by_id repeatedly when you already know
-    several document IDs — it is one network round trip rather than one per document.
+    several document IDs. The saving is one tool call rather than one per document, so
+    the batch does not arrive as N separate responses. Underneath, the SDK issues the
+    individual key requests concurrently rather than as a single batched operation.
     Do NOT use it to hunt for IDs you are guessing at, and do not use it to read a
     whole collection: if you don't already know the IDs, or you want documents matching
     some condition, use run_sql_plus_plus_query instead.
