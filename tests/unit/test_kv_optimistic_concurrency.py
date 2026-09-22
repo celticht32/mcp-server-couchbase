@@ -75,6 +75,21 @@ class TestParseCas:
         with pytest.raises(ValueError):
             _parse_cas(str(2**64))
 
+    @pytest.mark.parametrize("value", ["0", "00", "0000000000"])
+    def test_rejects_zero(self, value: str) -> None:
+        """0 is the SDK's sentinel for "no CAS check".
+
+        Accepting it would turn a write the caller believes is guarded into an
+        unconditional one, silently, which is worse than refusing the call.
+        """
+        with pytest.raises(ValueError) as excinfo:
+            _parse_cas(value)
+        assert "unconditional" in str(excinfo.value)
+
+    def test_smallest_usable_cas_still_parses(self) -> None:
+        """The zero guard must not move the boundary for real CAS values."""
+        assert _parse_cas("1") == 1
+
 
 class TestGetWithCas:
     def test_default_return_shape_is_unchanged(self) -> None:
