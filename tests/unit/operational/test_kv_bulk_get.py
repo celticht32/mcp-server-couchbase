@@ -46,7 +46,9 @@ class TestBatchRead:
             {"doc1": _document({"a": 1}), "doc2": _document({"b": 2})}
         )
 
-        with patch("cb_mcp.tools.operational.kv.get_cluster_connection", return_value=cluster):
+        with patch(
+            "cb_mcp.tools.operational.kv.get_cluster_connection", return_value=cluster
+        ):
             result = get_documents_by_ids(ctx, "b", "s", "c", ["doc1", "doc2"])
 
         assert result == {
@@ -54,12 +56,19 @@ class TestBatchRead:
             "errors": {},
         }
 
-    def test_fetches_in_a_single_round_trip(self) -> None:
-        """The point of the tool is one call, not one call per ID."""
+    def test_fetches_in_a_single_sdk_call(self) -> None:
+        """The point of the tool is one call, not one call per ID.
+
+        Not one network round trip: get_multi dispatches the individual key
+        requests concurrently rather than as a batched operation. What is saved
+        is the tool call, and therefore the agent turn.
+        """
         ctx, cluster, collection = _make_ctx_with_collection()
         collection.get_multi.return_value = _multi_result({})
 
-        with patch("cb_mcp.tools.operational.kv.get_cluster_connection", return_value=cluster):
+        with patch(
+            "cb_mcp.tools.operational.kv.get_cluster_connection", return_value=cluster
+        ):
             get_documents_by_ids(ctx, "b", "s", "c", ["doc1", "doc2", "doc3"])
 
         collection.get_multi.assert_called_once()
@@ -71,7 +80,9 @@ class TestBatchRead:
         ctx, cluster, collection = _make_ctx_with_collection()
         collection.get_multi.return_value = _multi_result({})
 
-        with patch("cb_mcp.tools.operational.kv.get_cluster_connection", return_value=cluster):
+        with patch(
+            "cb_mcp.tools.operational.kv.get_cluster_connection", return_value=cluster
+        ):
             get_documents_by_ids(ctx, "b", "s", "c", ["doc1"])
 
         assert collection.get_multi.call_args.kwargs["return_exceptions"] is True
@@ -85,7 +96,9 @@ class TestPartialSuccess:
             {"missing": DocumentNotFoundException("document not found")},
         )
 
-        with patch("cb_mcp.tools.operational.kv.get_cluster_connection", return_value=cluster):
+        with patch(
+            "cb_mcp.tools.operational.kv.get_cluster_connection", return_value=cluster
+        ):
             result = get_documents_by_ids(ctx, "b", "s", "c", ["doc1", "missing"])
 
         assert result["documents"] == {"doc1": {"a": 1}}
@@ -101,7 +114,9 @@ class TestPartialSuccess:
             {"doc1": _document({"a": 1}), "doc2": broken}
         )
 
-        with patch("cb_mcp.tools.operational.kv.get_cluster_connection", return_value=cluster):
+        with patch(
+            "cb_mcp.tools.operational.kv.get_cluster_connection", return_value=cluster
+        ):
             result = get_documents_by_ids(ctx, "b", "s", "c", ["doc1", "doc2"])
 
         assert result["documents"] == {"doc1": {"a": 1}}
@@ -116,7 +131,9 @@ class TestPartialSuccess:
             {"doc2": DocumentNotFoundException("nope")},
         )
 
-        with patch("cb_mcp.tools.operational.kv.get_cluster_connection", return_value=cluster):
+        with patch(
+            "cb_mcp.tools.operational.kv.get_cluster_connection", return_value=cluster
+        ):
             result = get_documents_by_ids(ctx, "b", "s", "c", ["doc1", "doc2"])
 
         assert set(result["documents"]) | set(result["errors"]) == {"doc1", "doc2"}
@@ -127,7 +144,9 @@ class TestInputBounds:
     def test_empty_list_is_rejected_without_calling_the_cluster(self) -> None:
         ctx, cluster, collection = _make_ctx_with_collection()
 
-        with patch("cb_mcp.tools.operational.kv.get_cluster_connection", return_value=cluster):
+        with patch(
+            "cb_mcp.tools.operational.kv.get_cluster_connection", return_value=cluster
+        ):
             result = get_documents_by_ids(ctx, "b", "s", "c", [])
 
         assert "error" in result
@@ -138,7 +157,9 @@ class TestInputBounds:
         collection.get_multi.return_value = _multi_result({})
         ids = [f"doc{n}" for n in range(MAX_BULK_GET_IDS)]
 
-        with patch("cb_mcp.tools.operational.kv.get_cluster_connection", return_value=cluster):
+        with patch(
+            "cb_mcp.tools.operational.kv.get_cluster_connection", return_value=cluster
+        ):
             result = get_documents_by_ids(ctx, "b", "s", "c", ids)
 
         assert "documents" in result
@@ -149,7 +170,9 @@ class TestInputBounds:
         ctx, cluster, collection = _make_ctx_with_collection()
         ids = [f"doc{n}" for n in range(MAX_BULK_GET_IDS + 1)]
 
-        with patch("cb_mcp.tools.operational.kv.get_cluster_connection", return_value=cluster):
+        with patch(
+            "cb_mcp.tools.operational.kv.get_cluster_connection", return_value=cluster
+        ):
             result = get_documents_by_ids(ctx, "b", "s", "c", ids)
 
         assert str(MAX_BULK_GET_IDS) in result["error"]
@@ -163,7 +186,9 @@ class TestFailure:
         ctx, cluster, collection = _make_ctx_with_collection()
         collection.get_multi.side_effect = Exception("connection reset")
 
-        with patch("cb_mcp.tools.operational.kv.get_cluster_connection", return_value=cluster):
+        with patch(
+            "cb_mcp.tools.operational.kv.get_cluster_connection", return_value=cluster
+        ):
             result = get_documents_by_ids(ctx, "b", "s", "c", ["doc1"])
 
         assert result == {"error": "connection reset"}
@@ -174,7 +199,7 @@ class TestFailure:
         ctx, _cluster, collection = _make_ctx_with_collection()
 
         with patch(
-            "cb_mcp.tools.kv.get_cluster_connection",
+            "cb_mcp.tools.operational.kv.get_cluster_connection",
             side_effect=Exception("cluster provider unavailable"),
         ):
             result = get_documents_by_ids(ctx, "b", "s", "c", ["doc1"])
@@ -186,9 +211,12 @@ class TestFailure:
         ctx, cluster, collection = _make_ctx_with_collection()
 
         with (
-            patch("cb_mcp.tools.kv.get_cluster_connection", return_value=cluster),
             patch(
-                "cb_mcp.tools.kv.connect_to_bucket",
+                "cb_mcp.tools.operational.kv.get_cluster_connection",
+                return_value=cluster,
+            ),
+            patch(
+                "cb_mcp.tools.operational.kv.connect_to_bucket",
                 side_effect=Exception("bucket not found"),
             ),
         ):
