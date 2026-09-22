@@ -45,6 +45,15 @@ def _parse_cas(cas: str) -> int:
             f"(digits only); got {cas!r}"
         )
     parsed = int(cas)
+    if parsed == 0:
+        # The SDK treats a CAS of 0 as the sentinel for "no CAS check", so a
+        # zero here would turn a guarded write into an unconditional one while
+        # still looking guarded to the caller. Zero is never a CAS returned for
+        # an existing document, so no legitimate caller reaches this.
+        raise ValueError(
+            "cas must be a CAS value read from an existing document; 0 means "
+            '"no CAS check" to the SDK and would make this write unconditional'
+        )
     if parsed >= 2**64:
         raise ValueError(f"cas must fit in an unsigned 64-bit integer; got {parsed}")
     return parsed

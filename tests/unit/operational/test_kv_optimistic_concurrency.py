@@ -11,7 +11,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from cb_mcp.tools.kv import (
+from cb_mcp.tools.operational.kv import (
     _parse_cas,
     delete_document_by_id,
     get_document_by_id,
@@ -75,6 +75,21 @@ class TestParseCas:
         with pytest.raises(ValueError):
             _parse_cas(str(2**64))
 
+    @pytest.mark.parametrize("value", ["0", "00", "0000000000"])
+    def test_rejects_zero(self, value: str) -> None:
+        """0 is the SDK's sentinel for "no CAS check".
+
+        Accepting it would turn a write the caller believes is guarded into an
+        unconditional one, silently, which is worse than refusing the call.
+        """
+        with pytest.raises(ValueError) as excinfo:
+            _parse_cas(value)
+        assert "unconditional" in str(excinfo.value)
+
+    def test_smallest_usable_cas_still_parses(self) -> None:
+        """The zero guard must not move the boundary for real CAS values."""
+        assert _parse_cas("1") == 1
+
 
 class TestGetWithCas:
     def test_default_return_shape_is_unchanged(self) -> None:
@@ -82,7 +97,9 @@ class TestGetWithCas:
         ctx, cluster, collection = _make_ctx_with_collection()
         _program_get(collection, {"a": 1}, 12345)
 
-        with patch("cb_mcp.tools.kv.get_cluster_connection", return_value=cluster):
+        with patch(
+            "cb_mcp.tools.operational.kv.get_cluster_connection", return_value=cluster
+        ):
             result = get_document_by_id(ctx, "b", "s", "c", "doc1")
 
         assert result == {"a": 1}
@@ -91,7 +108,9 @@ class TestGetWithCas:
         ctx, cluster, collection = _make_ctx_with_collection()
         _program_get(collection, {"a": 1}, 12345)
 
-        with patch("cb_mcp.tools.kv.get_cluster_connection", return_value=cluster):
+        with patch(
+            "cb_mcp.tools.operational.kv.get_cluster_connection", return_value=cluster
+        ):
             result = get_document_by_id(ctx, "b", "s", "c", "doc1", with_cas=True)
 
         assert result == {"content": {"a": 1}, "cas": "12345"}
@@ -101,7 +120,9 @@ class TestGetWithCas:
         big = 2**63 + 12345
         _program_get(collection, {"a": 1}, big)
 
-        with patch("cb_mcp.tools.kv.get_cluster_connection", return_value=cluster):
+        with patch(
+            "cb_mcp.tools.operational.kv.get_cluster_connection", return_value=cluster
+        ):
             result = get_document_by_id(ctx, "b", "s", "c", "doc1", with_cas=True)
 
         assert _parse_cas(result["cas"]) == big
@@ -112,7 +133,10 @@ class TestGetWithCas:
         collection.get.side_effect = Exception("DocumentNotFoundException")
 
         with (
-            patch("cb_mcp.tools.kv.get_cluster_connection", return_value=cluster),
+            patch(
+                "cb_mcp.tools.operational.kv.get_cluster_connection",
+                return_value=cluster,
+            ),
             pytest.raises(Exception, match="DocumentNotFoundException"),
         ):
             get_document_by_id(ctx, "b", "s", "c", "doc1", with_cas=True)
@@ -125,7 +149,9 @@ class TestRoundTrip:
         ctx, cluster, collection = _make_ctx_with_collection()
         _program_get(collection, {"a": 1}, 987654321)
 
-        with patch("cb_mcp.tools.kv.get_cluster_connection", return_value=cluster):
+        with patch(
+            "cb_mcp.tools.operational.kv.get_cluster_connection", return_value=cluster
+        ):
             read = get_document_by_id(ctx, "b", "s", "c", "doc1", with_cas=True)
             replace_document_by_id(
                 ctx, "b", "s", "c", "doc1", {"a": 2}, cas=read["cas"]
@@ -138,7 +164,9 @@ class TestCasOnWrites:
     def test_replace_without_cas_preserves_call_shape(self) -> None:
         ctx, cluster, collection = _make_ctx_with_collection()
 
-        with patch("cb_mcp.tools.kv.get_cluster_connection", return_value=cluster):
+        with patch(
+            "cb_mcp.tools.operational.kv.get_cluster_connection", return_value=cluster
+        ):
             replace_document_by_id(ctx, "b", "s", "c", "doc1", {"a": 1})
 
         collection.replace.assert_called_once_with("doc1", {"a": 1})
@@ -146,7 +174,9 @@ class TestCasOnWrites:
     def test_delete_without_cas_preserves_call_shape(self) -> None:
         ctx, cluster, collection = _make_ctx_with_collection()
 
-        with patch("cb_mcp.tools.kv.get_cluster_connection", return_value=cluster):
+        with patch(
+            "cb_mcp.tools.operational.kv.get_cluster_connection", return_value=cluster
+        ):
             delete_document_by_id(ctx, "b", "s", "c", "doc1")
 
         collection.remove.assert_called_once_with("doc1")
@@ -154,7 +184,9 @@ class TestCasOnWrites:
     def test_delete_passes_cas(self) -> None:
         ctx, cluster, collection = _make_ctx_with_collection()
 
-        with patch("cb_mcp.tools.kv.get_cluster_connection", return_value=cluster):
+        with patch(
+            "cb_mcp.tools.operational.kv.get_cluster_connection", return_value=cluster
+        ):
             result = delete_document_by_id(ctx, "b", "s", "c", "doc1", cas="42")
 
         assert result == {"success": True}
@@ -163,7 +195,9 @@ class TestCasOnWrites:
     def test_mutate_subdocument_passes_cas(self) -> None:
         ctx, cluster, collection = _make_ctx_with_collection()
 
-        with patch("cb_mcp.tools.kv.get_cluster_connection", return_value=cluster):
+        with patch(
+            "cb_mcp.tools.operational.kv.get_cluster_connection", return_value=cluster
+        ):
             mutate_subdocument(
                 ctx,
                 "b",
@@ -179,7 +213,9 @@ class TestCasOnWrites:
     def test_mutate_subdocument_without_cas_preserves_call_shape(self) -> None:
         ctx, cluster, collection = _make_ctx_with_collection()
 
-        with patch("cb_mcp.tools.kv.get_cluster_connection", return_value=cluster):
+        with patch(
+            "cb_mcp.tools.operational.kv.get_cluster_connection", return_value=cluster
+        ):
             mutate_subdocument(
                 ctx, "b", "s", "c", "doc1", upsert_specs=[{"path": "a", "value": 1}]
             )
@@ -193,7 +229,9 @@ class TestRejectionBeforeWriting:
     def test_replace(self) -> None:
         ctx, cluster, collection = _make_ctx_with_collection()
 
-        with patch("cb_mcp.tools.kv.get_cluster_connection", return_value=cluster):
+        with patch(
+            "cb_mcp.tools.operational.kv.get_cluster_connection", return_value=cluster
+        ):
             result = replace_document_by_id(
                 ctx, "b", "s", "c", "doc1", {"a": 1}, cas="not-a-number"
             )
@@ -205,7 +243,9 @@ class TestRejectionBeforeWriting:
     def test_delete(self) -> None:
         ctx, cluster, collection = _make_ctx_with_collection()
 
-        with patch("cb_mcp.tools.kv.get_cluster_connection", return_value=cluster):
+        with patch(
+            "cb_mcp.tools.operational.kv.get_cluster_connection", return_value=cluster
+        ):
             result = delete_document_by_id(ctx, "b", "s", "c", "doc1", cas="1_0")
 
         assert result["success"] is False
@@ -214,7 +254,9 @@ class TestRejectionBeforeWriting:
     def test_mutate_subdocument(self) -> None:
         ctx, cluster, collection = _make_ctx_with_collection()
 
-        with patch("cb_mcp.tools.kv.get_cluster_connection", return_value=cluster):
+        with patch(
+            "cb_mcp.tools.operational.kv.get_cluster_connection", return_value=cluster
+        ):
             result = mutate_subdocument(
                 ctx,
                 "b",
