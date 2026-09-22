@@ -167,3 +167,32 @@ class TestFailure:
             result = get_documents_by_ids(ctx, "b", "s", "c", ["doc1"])
 
         assert result == {"error": "connection reset"}
+
+    def test_unavailable_cluster_uses_the_same_envelope(self) -> None:
+        """The docstring promises {"error": ...} on a connection failure, so
+        the failure must not depend on which stage of the call raised it."""
+        ctx, _cluster, collection = _make_ctx_with_collection()
+
+        with patch(
+            "cb_mcp.tools.kv.get_cluster_connection",
+            side_effect=Exception("cluster provider unavailable"),
+        ):
+            result = get_documents_by_ids(ctx, "b", "s", "c", ["doc1"])
+
+        assert result == {"error": "cluster provider unavailable"}
+        collection.get_multi.assert_not_called()
+
+    def test_bucket_failure_uses_the_same_envelope(self) -> None:
+        ctx, cluster, collection = _make_ctx_with_collection()
+
+        with (
+            patch("cb_mcp.tools.kv.get_cluster_connection", return_value=cluster),
+            patch(
+                "cb_mcp.tools.kv.connect_to_bucket",
+                side_effect=Exception("bucket not found"),
+            ),
+        ):
+            result = get_documents_by_ids(ctx, "b", "s", "c", ["doc1"])
+
+        assert result == {"error": "bucket not found"}
+        collection.get_multi.assert_not_called()

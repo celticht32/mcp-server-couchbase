@@ -531,9 +531,14 @@ def get_documents_by_ids(
         logger.warning(f"Error getting documents from {keyspace}: {error}")
         return {"error": error}
 
-    cluster = get_cluster_connection(ctx)
-    bucket = connect_to_bucket(cluster, bucket_name)
     try:
+        # Cluster and bucket acquisition sit inside the try, unlike the
+        # single-document tools above, because this tool's contract promises
+        # that a whole-call failure comes back as {"error": ...}. Outside it,
+        # an unreachable cluster or a missing bucket would raise past the
+        # documented envelope instead.
+        cluster = get_cluster_connection(ctx)
+        bucket = connect_to_bucket(cluster, bucket_name)
         logger.debug(f"Getting {len(document_ids)} documents from {keyspace}")
         collection = bucket.scope(scope_name).collection(collection_name)
         # return_exceptions keeps one missing key from raising for the whole
