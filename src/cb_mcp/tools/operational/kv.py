@@ -25,22 +25,140 @@ from ...utils.responses import tool_error, tool_success
 logger = logging.getLogger(f"{OPERATIONAL_LOGGER_NAMESPACE}.tools.kv")
 
 
+#: Upper bound on a single batch read. Enforced before the cluster is touched.
+#: The same cap the four-tool version of this proposal used, so the two shapes
+#: are comparable. Worth stating plainly in review: SQL++ `USE KEYS` carries no
+#: equivalent cap on keys accepted or bytes returned, so if result size is the
+#: concern, the bounded option is this one.
+MAX_BULK_READ_DOCS = 100
+
+
+def _check_read_batch(
+    *, single: Any, batch: Any, keyspace: str
+) -> dict[str, Any] | None:
+    """Validate the single/batch choice. Returns an error envelope, or None.
+
+    The two modes are mutually exclusive on purpose. A caller that supplied both
+    has not decided what it is asking for, and silently preferring one hides
+    that rather than surfacing it.
+    """
+    if batch is None:
+        if single is None:
+            return tool_error(
+                "Provide either document_id for one document, or document_ids "
+                "for several. Neither was given.",
+                keyspace=keyspace,
+            )
+        return None
+
+    if single is not None:
+        return tool_error(
+            "Provide either document_id or document_ids, not both.",
+            keyspace=keyspace,
+        )
+
+    if not batch:
+        return tool_error("document_ids is empty. Nothing to read.", keyspace=keyspace)
+
+    if len(batch) > MAX_BULK_READ_DOCS:
+        return tool_error(
+            f"document_ids holds {len(batch)} entries, which is more than the "
+            f"limit of {MAX_BULK_READ_DOCS}. Nothing was read. Ask for fewer "
+            "documents, or narrow the set first.",
+            keyspace=keyspace,
+            requested=len(batch),
+            limit=MAX_BULK_READ_DOCS,
+        )
+    return None
+
+
+def _shape_multi_get(result: Any, requested_ids: list[str]) -> dict[str, Any]:
+    """Turn an SDK multi-get into a complete account of what was asked for.
+
+    Every requested id lands in exactly one of ``documents`` and ``errors``.
+    That is the difference from the SQL++ alternative, and it is the point of
+    the shape: ``SELECT * ... USE KEYS`` simply produces no row for a key that
+    is absent, so the caller has to diff what it asked for against what came
+    back, and still cannot tell "absent" from "I mistyped it".
+
+    A document the SDK reports neither way is recorded as an error rather than
+    quietly dropped, for the same reason: a missing outcome is not an answer.
+    """
+    exceptions = dict(getattr(result, "exceptions", None) or {})
+    results = getattr(result, "results", None) or {}
+
+    documents: dict[str, Any] = {}
+    errors: dict[str, str] = {}
+
+    for doc_id in requested_ids:
+        if doc_id in exceptions:
+            exc = exceptions[doc_id]
+            errors[doc_id] = f"{type(exc).__name__}: {exc}".strip(": ")
+            continue
+        if doc_id in results:
+            try:
+                documents[doc_id] = results[doc_id].content_as[dict]
+            except Exception as e:
+                errors[doc_id] = (
+                    f"The document was returned but could not be read as JSON: "
+                    f"{type(e).__name__}: {e}".strip(": ")
+                )
+            continue
+        errors[doc_id] = (
+            "The server returned no outcome for this document. It was not read; "
+            "this does not establish that it is absent."
+        )
+
+    return tool_success(documents=documents, errors=errors)
+
+
 def get_document_by_id(
     ctx: Context,
     bucket_name: str,
     scope_name: str,
     collection_name: str,
-    document_id: str,
+    document_id: str | None = None,
+    document_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     """Get a document by its ID from the specified scope and collection.
-    If the document is not found, it will raise an exception."""
+
+    Pass EITHER document_id for one document, OR document_ids for up to 100
+    documents in a single call. Prefer the batch form whenever you need more
+    than one: it costs one tool call instead of one per document, and the result
+    says explicitly which documents were found and which were not.
+
+    Single form returns the document, and raises if it is not found.
+    Batch form returns {"success": True, "documents": {id: content}, "errors":
+    {id: reason}}, where every requested ID appears in exactly one of the two,
+    and never raises for an individual document."""
 
     keyspace = format_keyspace(bucket_name, scope_name, collection_name)
+    invalid = _check_read_batch(
+        single=document_id, batch=document_ids, keyspace=keyspace
+    )
+    if invalid is not None:
+        return invalid
+
     cluster = get_cluster_connection(ctx)
     bucket = connect_to_bucket(cluster, bucket_name)
     try:
-        logger.debug(f"Getting document from {keyspace}")
         collection = bucket.scope(scope_name).collection(collection_name)
+
+        if document_ids is not None:
+            # Deduplicated, order preserved. Asking twice is one read, and
+            # reporting the repeat separately would describe the caller's
+            # typing rather than the collection.
+            unique_ids = list(dict.fromkeys(document_ids))
+            logger.debug(f"Getting {len(unique_ids)} document(s) from {keyspace}")
+            result = collection.get_multi(unique_ids, return_exceptions=True)
+            shaped = _shape_multi_get(result, unique_ids)
+            logger.info(
+                f"Read batch from {keyspace}: "
+                f"{len(shaped['documents'])} found, {len(shaped['errors'])} not"
+            )
+            return shaped
+
+        logger.debug(f"Getting document from {keyspace}")
         result = collection.get(document_id)
         logger.info(f"Retrieved document from {keyspace}")
         return result.content_as[dict]
