@@ -31,6 +31,45 @@ class ConfirmationResult(BaseModel):
     )
 
 
+#: How many target ids a confirmation prompt names, and how long each may be.
+#: A batch can carry up to 100 documents; the person approving needs to see
+#: what is about to change and how much of it, not a wall of text.
+_CONFIRMATION_MAX_LISTED_IDS = 5
+_CONFIRMATION_MAX_ID_LENGTH = 60
+
+
+def _batch_summary(kwargs: dict) -> str | None:
+    """Describe a batch's size and a bounded sample of its targets, or None.
+
+    Covers both batch shapes the KV tools accept: ``document_ids`` (a list of
+    ids) and ``documents`` (a mapping of id to content). The count is always
+    stated so the prompt is never silent about how many documents are affected.
+    """
+    batch = kwargs.get("document_ids")
+    if batch is None:
+        batch = kwargs.get("documents")
+    if batch is None or isinstance(batch, str):
+        return None
+
+    try:
+        ids = [str(item) for item in batch]
+    except TypeError:
+        return None
+
+    shown = [
+        item
+        if len(item) <= _CONFIRMATION_MAX_ID_LENGTH
+        else item[: _CONFIRMATION_MAX_ID_LENGTH - 3] + "..."
+        for item in ids[:_CONFIRMATION_MAX_LISTED_IDS]
+    ]
+    remaining = len(ids) - len(shown)
+    listed = ", ".join(shown)
+    if remaining > 0:
+        listed += f", and {remaining} more"
+    noun = "document" if len(ids) == 1 else "documents"
+    return f"This affects {len(ids)} {noun}: {listed}"
+
+
 def _build_confirmation_message(tool_name: str, kwargs: dict) -> str:
     """Build a human-readable confirmation message for a tool invocation."""
     # Extract key identifiers from common parameters for a descriptive message
@@ -43,6 +82,10 @@ def _build_confirmation_message(tool_name: str, kwargs: dict) -> str:
 
     if identifiers:
         parts.append(f"Parameters: {', '.join(identifiers)}")
+
+    summary = _batch_summary(kwargs)
+    if summary:
+        parts.append(summary)
 
     return " ".join(parts)
 

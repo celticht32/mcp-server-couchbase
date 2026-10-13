@@ -578,3 +578,46 @@ class TestConfirmationEndToEnd:
             )
 
         assert [r.data for r in results] == ["deleted doc-1", "deleted doc-2"]
+
+
+class TestConfirmationNamesTheBatch:
+    """A prompt must say how many documents a batch affects, and which."""
+
+    def test_a_large_id_batch_states_the_count_and_a_bounded_sample(self) -> None:
+        ids = [f"doc{i}" for i in range(100)]
+        message = _build_confirmation_message(
+            "delete_document_by_id",
+            {"bucket_name": "b", "document_ids": ids},
+        )
+
+        assert "100 documents" in message
+        assert "doc0" in message and "doc4" in message
+        assert "doc5" not in message
+        assert "95 more" in message
+
+    def test_a_document_mapping_is_summarised_by_its_keys(self) -> None:
+        message = _build_confirmation_message(
+            "upsert_document_by_id",
+            {"documents": {"a": {"v": 1}, "b": {"v": 2}}},
+        )
+
+        assert "2 documents: a, b" in message
+        assert "'v'" not in message  # content is never echoed
+
+    def test_one_document_uses_the_singular(self) -> None:
+        message = _build_confirmation_message("t", {"document_ids": ["only"]})
+        assert "1 document: only" in message
+
+    def test_a_very_long_id_is_truncated(self) -> None:
+        message = _build_confirmation_message("t", {"document_ids": ["k" * 500]})
+        assert "k" * 500 not in message
+        assert "..." in message
+
+    def test_a_single_document_prompt_is_unchanged(self) -> None:
+        message = _build_confirmation_message(
+            "delete_document_by_id", {"document_id": "d1", "bucket_name": "b"}
+        )
+        assert message == (
+            "Do you want to execute 'delete_document_by_id'? "
+            "Parameters: document_id=d1, bucket_name=b"
+        )
